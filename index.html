@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Torre de Hanói 3D</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Custom CSS -->
+    <link href="styles.css" rel="stylesheet">
+    
+    <!-- Three.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- OrbitControls -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <!-- Post-processing -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Painel de Controle -->
+            <div class="col-md-3">
+                <div class="control-panel">
+                    <h2 class="mb-4">Torre de Hanói 3D</h2>
+                    
+                    <!-- Configurações de Tempo -->
+                    <div class="time-settings mb-4">
+                        <h5>Tempo de Jogo</h5>
+                        <div class="btn-group w-100">
+                            <button class="btn btn-outline-primary" data-time="60">1 min</button>
+                            <button class="btn btn-outline-primary" data-time="180">3 min</button>
+                            <button class="btn btn-outline-primary" data-time="300">5 min</button>
+                            <button class="btn btn-outline-primary" data-time="0">Sem tempo</button>
+                        </div>
+                    </div>
+
+                    <!-- Controles do Jogo -->
+                    <div class="game-controls mb-4">
+                        <button id="startGame" class="btn btn-success w-100">Iniciar Jogo</button>
+                        <button id="resetGame" class="btn btn-warning w-100">Reiniciar</button>
+                        <button id="undoMove" class="btn btn-info w-100">Desfazer Movimento</button>
+                    </div>
+
+                    <!-- Estatísticas -->
+                    <div class="game-stats">
+                        <h5>Estatísticas</h5>
+                        <div class="stats-item">
+                            <span>Tempo Restante:</span>
+                            <span id="timeRemaining">--:--</span>
+                        </div>
+                        <div class="stats-item">
+                            <span>Movimentos:</span>
+                            <span id="moveCount">0</span>
+                        </div>
+                        <div class="stats-item">
+                            <span>Mínimo Necessário:</span>
+                            <span id="minMoves">255</span>
+                        </div>
+                    </div>
+
+                    <!-- Instruções -->
+                    <div class="mt-4">
+                        <h5>Como Jogar</h5>
+                        <ul class="list-unstyled">
+                            <li>• Arraste os discos para movê-los</li>
+                            <li>• Não coloque discos maiores sobre menores</li>
+                            <li>• Mova todos os discos para a torre direita</li>
+                            <li>• Use o mouse para girar a câmera</li>
+                            <li>• Scroll para zoom</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Área do Jogo -->
+            <div class="col-md-9">
+                <div class="game-container">
+                    <div id="gameCanvas"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Game Logic -->
+    <script src="game.js"></script>
+    <script>
+        // Inicializar o jogo quando a página carregar
+        window.addEventListener('load', () => {
+            const game = new TowerOfHanoi();
+        });
+    </script>
+</body>
+</html>
