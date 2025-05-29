@@ -23,7 +23,8 @@ class TowerOfHanoi {
         // Adicionar estados do jogo
         this.isMoving = false; // Previne múltiplos movimentos simultâneos
         this.targetTower = 2; // Torre de destino (direita)
-        this.minMovesRequired = 255; // Mínimo de movimentos necessários para 8 discos (2^8 - 1)
+        this.numDisks = 5; // Número padrão de discos
+        this.minMovesRequired = Math.pow(2, this.numDisks) - 1; // Mínimo de movimentos necessários
 
         // Adicionar estados para drag and drop
         this.dragHeight = 3; // Aumentar altura do disco durante o arrasto para melhor visibilidade
@@ -92,6 +93,7 @@ class TowerOfHanoi {
         this.setupEventListeners();
         this.loadAudio();
         this.setupPostProcessing();
+        this.loadFont(); // Carregar fonte para texto 3D
     }
 
     init() {
@@ -141,13 +143,33 @@ class TowerOfHanoi {
         const towerGeometry = new THREE.CylinderGeometry(0.2, 0.2, 3, 32);
         const towerMaterial = new THREE.MeshPhongMaterial({ color: 0x808080 });
 
-        for (let i = -1; i <= 1; i++) {
+        // Limpar torres existentes e seus identificadores
+        this.towers.forEach(tower => {
+            this.scene.remove(tower.mesh);
+            if(tower.label) this.scene.remove(tower.label);
+        });
+        this.towers = [];
+
+        const towerLabels = ['A', 'B', 'C'];
+
+        for (let i = 0; i <= 2; i++) { // Iterar 3 vezes para as 3 torres
             const tower = new THREE.Mesh(towerGeometry, towerMaterial);
-            tower.position.set(i * 4, 1.5, 0);
+            const towerX = (i - 1) * 4; // Posições -4, 0, 4
+            tower.position.set(towerX, 3/2, 0); // Posicionar a base da torre em y=0 (topo da base de madeira)
             this.scene.add(tower);
+
+            // Adicionar identificador (A, B, C)
+            const label = this.createText(towerLabels[i], 0.5, 0.1, 0x000000);
+            if (label) {
+                label.position.set(towerX, 3/2 + 3/2 + 0.2, 0); // Posição acima da torre ajustada
+                this.scene.add(label);
+                tower.label = label; // Armazenar referência ao label
+            }
+
             this.towers.push({
                 mesh: tower,
-                disks: []
+                disks: [],
+                label: label
             });
         }
     }
@@ -158,35 +180,57 @@ class TowerOfHanoi {
             0x0000ff, 0x4b0082, 0x9400d3, 0xff1493
         ];
 
+        // Limpar discos existentes e seus números
+        this.disks.forEach(disk => {
+            this.scene.remove(disk.mesh);
+            if(disk.numberLabel) this.scene.remove(disk.numberLabel);
+        });
+        this.disks = [];
+        this.towers.forEach(tower => tower.disks = []);
+
         // Criar discos do maior (base) para o menor (topo)
-        for (let i = 7; i >= 0; i--) {
-            const radius = 1.5 - (i * 0.15); // Maior disco tem maior raio
+        for (let i = this.numDisks - 1; i >= 0; i--) {
+            const radius = 1.5 - (i * (1.5 / this.numDisks)); // Ajustar raio com base no número de discos
             const height = 0.3;
             const diskGeometry = new THREE.CylinderGeometry(radius, radius, height, 32);
             const diskMaterial = new THREE.MeshPhongMaterial({ 
-                color: colors[i],
+                color: colors[i % colors.length],
                 shininess: 30
             });
             const disk = new THREE.Mesh(diskGeometry, diskMaterial);
             
             // Posicionar discos na ordem correta (maior embaixo, menor em cima)
-            const diskIndex = 7 - i; // Agora i=7 é o maior disco (base)
-            disk.position.set(-4, 0.15 + (diskIndex * 0.3), 0);
+            const diskIndex = this.numDisks - 1 - i; // 0 = menor, numDisks-1 = maior
+            const diskY = height/2 + (diskIndex * 0.3);
+            disk.position.set(-4, diskY, 0);
             
             disk.userData.isDisk = true;
             disk.userData.diskIndex = diskIndex;
             
             this.scene.add(disk);
+
+            // Adicionar número ao disco
+            const numberLabel = this.createText((i + 1).toString(), 0.4, 0.05, 0x000000); // Número de 1 a numDisks
+            if (numberLabel) {
+                 // Posicionar o texto no centro do disco
+                numberLabel.position.set(-4, diskY, height/2 + 0.05); // Ajustar Z para ficar visível
+                this.scene.add(numberLabel);
+                disk.numberLabel = numberLabel; // Armazenar referência ao label
+            }
             
             this.disks.push({
                 mesh: disk,
-                size: diskIndex, // size agora representa o tamanho real (0 = menor, 7 = maior)
-                currentTower: 0
+                size: diskIndex, // size agora representa o tamanho real (0 = menor, numDisks-1 = maior)
+                currentTower: 0,
+                numberLabel: numberLabel
             });
             
             // Adicionar disco à torre inicial (maior embaixo, menor em cima)
-            this.towers[0].disks.push(diskIndex);
+            // This is handled in the startGame/resetGame methods now to ensure correct initial stacking
         }
+
+        // Atualizar o número mínimo de movimentos na UI
+        document.getElementById('minMoves').textContent = this.minMovesRequired;
     }
 
     setupEventListeners() {
@@ -355,7 +399,7 @@ class TowerOfHanoi {
         const topDisk = this.disks[topDiskIndex];
         
         // O movimento é válido se o disco que está sendo movido for MENOR que o disco do topo
-        if (disk.size >= topDisk.size) {
+        if (this.disks.indexOf(disk) >= this.disks.indexOf(topDisk)) { // Comparar índices (0 = menor, numDisks-1 = maior)
             this.showInvalidMoveFeedback(disk.mesh, "Não é possível colocar um disco maior sobre um menor");
             return false;
         }
@@ -380,12 +424,15 @@ class TowerOfHanoi {
         targetTower.disks.push(diskIndex);
         disk.currentTower = targetTowerIndex;
 
-        // Calcular nova posição
-        const newY = 0.15 + ((targetTower.disks.length - 1) * 0.3);
+        // Calcular nova posição (ajustado para começar do chão)
+        const newY = disk.mesh.geometry.parameters.height/2 + ((targetTower.disks.length - 1) * 0.3);
         const newX = (targetTowerIndex - 1) * 4;
 
-        // Animar movimento
+        // Animar movimento do disco e seu número
         return this.animateDiskMove(disk.mesh, newX, newY).then(() => {
+             if(disk.numberLabel) {
+                 this.animateDiskMove(disk.numberLabel, newX, newY + disk.mesh.geometry.parameters.height/2 + 0.05); // Animar o label junto
+             }
             // Registrar movimento
             this.moveHistory.push({
                 diskIndex,
@@ -407,24 +454,27 @@ class TowerOfHanoi {
         });
     }
 
-    animateDiskMove(disk, targetX, targetY) {
+    animateDiskMove(object, targetX, targetY) {
         return new Promise(resolve => {
-            const startX = disk.position.x;
-            const startY = disk.position.y;
-            const duration = 500;
+            const startX = object.position.x;
+            const startY = object.position.y;
+            const startZ = object.position.z;
+            const duration = 500; // Ajuste a duração conforme necessário
             const startTime = Date.now();
 
             const animate = () => {
                 const elapsed = Date.now() - startTime;
                 const progress = Math.min(elapsed / duration, 1);
 
-                // Curva de animação suave
+                // Curva de animação suave (você pode ajustar esta função de easing)
                 const easeProgress = progress < 0.5
                     ? 4 * progress * progress * progress
                     : 1 - Math.pow(-2 * progress + 2, 3) / 2;
 
-                disk.position.x = startX + (targetX - startX) * easeProgress;
-                disk.position.y = startY + (targetY - startY) * easeProgress;
+                object.position.x = startX + (targetX - startX) * easeProgress;
+                object.position.y = startY + (targetY - startY) * easeProgress;
+                 // Manter a posição Z original ou ajustá-la se necessário durante a animação
+                // object.position.z = startZ + (targetZ - startZ) * easeProgress; 
 
                 if (progress < 1) {
                     requestAnimationFrame(animate);
@@ -443,6 +493,33 @@ class TowerOfHanoi {
             return;
         }
 
+        // Obter número de discos selecionado
+        const numDisksSelect = document.getElementById('numDisks');
+        this.numDisks = parseInt(numDisksSelect.value);
+        this.minMovesRequired = Math.pow(2, this.numDisks) - 1;
+
+        // Reiniciar discos e torres com o novo número de discos
+        this.createDisks();
+        this.towers.forEach(tower => tower.disks = []); // Limpar discos das torres
+        // Adicionar discos à torre inicial na ordem correta (maior embaixo, menor em cima)
+        for (let i = this.numDisks - 1; i >= 0; i--) { // Iterar do maior disco (this.numDisks-1) para o menor (0)
+            // Find the disk index in the this.disks array that corresponds to the current size (i)
+            const diskIndex = this.disks.findIndex(d => d.size === i);
+            if (diskIndex !== -1) {
+                this.towers[0].disks.push(diskIndex); // Add the actual disk index to the tower's disk array
+            }
+        }
+        
+        // Posicionar discos corretamente na torre inicial
+        this.disks.forEach((disk, index) => {
+            disk.currentTower = 0;
+            // The position in the tower's disk array determines the vertical position
+            const diskIndexInTower = this.towers[0].disks.indexOf(this.disks.indexOf(disk)); // Find the vertical position of the disk in the tower's array
+            const diskY = disk.mesh.geometry.parameters.height/2 + (diskIndexInTower * 0.3);
+            disk.mesh.position.set(-4, diskY, 0);
+            disk.mesh.material.emissive.setHex(0x000000);
+        });
+
         this.isGameActive = true;
         this.gameStarted = true;
         this.timeRemaining = this.timeLimit;
@@ -455,6 +532,7 @@ class TowerOfHanoi {
         document.getElementById('startGame').disabled = true;
         document.getElementById('undoMove').disabled = false;
         document.querySelectorAll('.time-settings button').forEach(btn => btn.disabled = true);
+        document.getElementById('numDisks').disabled = true; // Desabilitar seletor de discos durante o jogo
 
         // Iniciar timer
         this.timer = setInterval(() => {
@@ -491,20 +569,47 @@ class TowerOfHanoi {
         this.timeRemaining = this.selectedTime || 0;
         this.moveValidationEnabled = true;
 
+        // Obter número de discos selecionado para reset
+        const numDisksSelect = document.getElementById('numDisks');
+        this.numDisks = parseInt(numDisksSelect.value);
+        this.minMovesRequired = Math.pow(2, this.numDisks) - 1;
+
+        // Resetar discos e torres com o número selecionado
+        // createDisks já limpa e recria os discos e seus labels
+        this.createDisks();
+        this.towers.forEach(tower => tower.disks = []); // Limpar discos das torres
+        // Adicionar discos à torre inicial na ordem correta (maior embaixo, menor em cima)
+        for (let i = this.numDisks - 1; i >= 0; i--) { // Iterar do maior disco (this.numDisks-1) para o menor (0)
+            // Find the disk index in the this.disks array that corresponds to the current size (i)
+            const diskIndex = this.disks.findIndex(d => d.size === i);
+            if (diskIndex !== -1) {
+                this.towers[0].disks.push(diskIndex); // Add the actual disk index to the tower's disk array
+            }
+        }
+
         // Resetar UI
         document.getElementById('startGame').disabled = !this.selectedTime;
         document.getElementById('undoMove').disabled = true;
         document.getElementById('moveCount').textContent = '0';
         document.getElementById('timeRemaining').textContent = this.formatTime(this.timeRemaining);
         document.querySelectorAll('.time-settings button').forEach(btn => btn.disabled = false);
+        document.getElementById('numDisks').disabled = false; // Habilitar seletor de discos
 
         // Resetar posições dos discos na ordem correta (maior embaixo, menor em cima)
         this.disks.forEach((disk, index) => {
             disk.currentTower = 0;
-            disk.mesh.position.set(-4, 0.15 + (index * 0.3), 0);
+            // The position in the tower's disk array determines the vertical position
+            const diskIndexInTower = this.towers[0].disks.indexOf(this.disks.indexOf(disk)); // Find the vertical position of the disk in the tower's array
+            const diskY = disk.mesh.geometry.parameters.height/2 + (diskIndexInTower * 0.3);
+            disk.mesh.position.set(-4, diskY, 0);
+            if(disk.numberLabel) {
+                 disk.numberLabel.position.set(-4, diskY + disk.mesh.geometry.parameters.height/2 + 0.05, 0); // Ajustar Z para ficar visível
+            }
             disk.mesh.material.emissive.setHex(0x000000);
-            this.towers[0].disks.push(index); // Adicionar na ordem correta (maior embaixo)
         });
+
+        // Atualizar o número mínimo de movimentos na UI
+        document.getElementById('minMoves').textContent = this.minMovesRequired;
     }
 
     undoMove() {
@@ -515,19 +620,24 @@ class TowerOfHanoi {
         const currentTower = this.towers[disk.currentTower];
         const targetTower = this.towers[lastMove.fromTower];
 
-        // Remover disco da torre atual (sempre o primeiro da lista)
-        currentTower.disks.shift();
+        // Remover disco da torre atual (sempre o último da lista)
+        currentTower.disks.pop();
 
-        // Adicionar disco à torre anterior (sempre no início da lista)
-        targetTower.disks.unshift(lastMove.diskIndex);
+        // Adicionar disco à torre anterior (sempre no final da lista)
+        targetTower.disks.push(lastMove.diskIndex);
         disk.currentTower = lastMove.fromTower;
 
-        // Atualizar posição do disco
-        const newY = 0.15 + ((7 - targetTower.disks.indexOf(lastMove.diskIndex)) * 0.3);
+        // Atualizar posição do disco (ajustado para começar do chão)
+        // The position in the tower's disk array determines the vertical position
+        const diskIndexInTower = targetTower.disks.indexOf(this.disks.indexOf(disk)); // Find the vertical position of the disk in the tower's array
+        const newY = disk.mesh.geometry.parameters.height/2 + (diskIndexInTower * 0.3);
         const newX = (lastMove.fromTower - 1) * 4;
 
-        // Animar movimento
+        // Animar movimento do disco e seu número
         this.animateDiskMove(disk.mesh, newX, newY);
+         if(disk.numberLabel) {
+             this.animateDiskMove(disk.numberLabel, newX, newY + disk.mesh.geometry.parameters.height/2 + 0.05);
+         }
 
         // Atualizar contador de movimentos
         this.moveCount--;
@@ -1003,13 +1113,14 @@ class TowerOfHanoi {
 
     checkWin() {
         // Verificar se todos os discos estão na torre de destino (direita)
-        if (this.towers[this.targetTower].disks.length !== this.disks.length) {
+        if (this.towers[this.targetTower].disks.length !== this.numDisks) {
             return false;
         }
 
         // Verificar se os discos estão na ordem correta (maior embaixo, menor em cima)
         const disks = this.towers[this.targetTower].disks;
         for (let i = 0; i < disks.length - 1; i++) {
+            // Comparar tamanhos reais (0 = menor, this.numDisks-1 = maior)
             if (this.disks[disks[i]].size <= this.disks[disks[i + 1]].size) {
                 return false;
             }
@@ -1161,9 +1272,9 @@ class TowerOfHanoi {
         if (tower.disks.length === 0) {
             tooltip.textContent = "Torre vazia - Movimento válido";
         } else {
-            const topDiskIndex = tower.disks[0]; // Primeiro disco é o do topo
+            const topDiskIndex = tower.disks[tower.disks.length - 1]; // O último elemento é o disco do topo
             const topDisk = this.disks[topDiskIndex];
-            const canMove = selectedDisk.size < topDisk.size;
+            const canMove = this.disks.indexOf(selectedDisk) < this.disks.indexOf(topDisk); // Comparar índices (0 = menor, numDisks-1 = maior)
             tooltip.textContent = canMove 
                 ? `Disco no topo: ${this.getDiskSizeDescription(topDisk.size)} - Movimento válido`
                 : `Disco no topo: ${this.getDiskSizeDescription(topDisk.size)} - Movimento inválido (disco muito grande)`;
@@ -1188,19 +1299,15 @@ class TowerOfHanoi {
     }
 
     solveTower() {
-        const n = parseInt(document.getElementById("discos").value);
-        if (n < 1 || n > 10) {
-            alert("Por favor, escolha um número de discos entre 1 e 10");
-            return;
-        }
+        const n = this.numDisks; // Usar o número de discos atual
+        if (n < 1) return; // Evitar resolver com 0 discos
 
         const resultado = [];
         this.torreHanoi(n, 'A', 'B', 'C', resultado);
-        document.getElementById("movimentos").innerText = resultado.join("\n");
+        // Pode ser útil exibir esses resultados em algum lugar na UI, talvez um modal ou área de texto
+        console.log("Passos para resolver:", resultado.join("\n"));
 
-        // Atualizar o número mínimo de movimentos
-        this.minMovesRequired = Math.pow(2, n) - 1;
-        document.getElementById("minMoves").textContent = this.minMovesRequired;
+        // Opcional: você pode implementar uma animação automática usando esses passos
     }
 
     torreHanoi(n, origem, auxiliar, destino, resultado) {
@@ -1212,6 +1319,41 @@ class TowerOfHanoi {
         this.torreHanoi(n - 1, origem, destino, auxiliar, resultado);
         resultado.push(`Mover disco ${n} de ${origem} para ${destino}`);
         this.torreHanoi(n - 1, auxiliar, origem, destino, resultado);
+    }
+
+    loadFont() {
+        const loader = new THREE.FontLoader();
+        loader.load('https://threejs.org/examples/fonts/helvetiker_regular.typeface.json', (font) => {
+            this.font = font;
+            // Após carregar a fonte, recriar elementos que precisam de texto
+            this.createTowers();
+            this.createDisks();
+        });
+    }
+
+    createText(text, size, height, color) {
+        if (!this.font) {
+            console.warn("Fonte não carregada.");
+            return null;
+        }
+
+        const geometry = new THREE.TextGeometry(text, {
+            font: this.font,
+            size: size,
+            height: height,
+            curveSegments: 12,
+            bevelEnabled: false
+        });
+
+        const material = new THREE.MeshPhongMaterial({ color: color });
+        const textMesh = new THREE.Mesh(geometry, material);
+
+        geometry.computeBoundingBox();
+        geometry.boundingBox.getCenter(textMesh.position).multiplyScalar(-1);
+
+        const parent = new THREE.Object3D();
+        parent.add(textMesh);
+        return parent;
     }
 }
 
