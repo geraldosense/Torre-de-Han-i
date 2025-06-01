@@ -155,13 +155,13 @@ class TowerOfHanoi {
         for (let i = 0; i <= 2; i++) { // Iterar 3 vezes para as 3 torres
             const tower = new THREE.Mesh(towerGeometry, towerMaterial);
             const towerX = (i - 1) * 4; // Posições -4, 0, 4
-            tower.position.set(towerX, 3/2, 0); // Posicionar a base da torre em y=0 (topo da base de madeira)
+            tower.position.set(towerX, 1.5, 0); // Ajustado para y=1.5 (metade da altura da torre)
             this.scene.add(tower);
 
             // Adicionar identificador (A, B, C)
             const label = this.createText(towerLabels[i], 0.5, 0.1, 0x000000);
             if (label) {
-                label.position.set(towerX, 3/2 + 3/2 + 0.2, 0); // Posição acima da torre ajustada
+                label.position.set(towerX, 3.2, 0); // Ajustado para ficar acima da torre
                 this.scene.add(label);
                 tower.label = label; // Armazenar referência ao label
             }
@@ -1153,37 +1153,98 @@ class TowerOfHanoi {
             message += "Tente novamente para encontrar uma solução mais eficiente!";
         }
 
-        // Mostrar mensagem de vitória
+        // Criar overlay com efeito de fade
+        const overlay = document.createElement('div');
+        overlay.style.position = 'fixed';
+        overlay.style.top = '0';
+        overlay.style.left = '0';
+        overlay.style.width = '100%';
+        overlay.style.height = '100%';
+        overlay.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+        overlay.style.opacity = '0';
+        overlay.style.transition = 'opacity 0.5s ease-in-out';
+        overlay.style.zIndex = '999';
+        document.body.appendChild(overlay);
+
+        // Criar container da mensagem de vitória
         const winDialog = document.createElement('div');
         winDialog.style.position = 'fixed';
         winDialog.style.top = '50%';
         winDialog.style.left = '50%';
-        winDialog.style.transform = 'translate(-50%, -50%)';
-        winDialog.style.backgroundColor = 'rgba(0, 0, 0, 0.9)';
-        winDialog.style.color = 'white';
-        winDialog.style.padding = '20px';
-        winDialog.style.borderRadius = '10px';
+        winDialog.style.transform = 'translate(-50%, -50%) scale(0.8)';
+        winDialog.style.backgroundColor = 'rgba(255, 255, 255, 0.95)';
+        winDialog.style.color = '#333';
+        winDialog.style.padding = '30px';
+        winDialog.style.borderRadius = '15px';
+        winDialog.style.boxShadow = '0 10px 25px rgba(0, 0, 0, 0.2)';
         winDialog.style.zIndex = '1000';
         winDialog.style.textAlign = 'center';
-        winDialog.innerHTML = message.replace(/\n/g, '<br>');
+        winDialog.style.minWidth = '300px';
+        winDialog.style.maxWidth = '90%';
+        winDialog.style.opacity = '0';
+        winDialog.style.transition = 'all 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55)';
 
+        // Adicionar título com estilo
+        const title = document.createElement('h2');
+        title.textContent = '🎉 Vitória! 🎉';
+        title.style.color = '#2ecc71';
+        title.style.marginBottom = '20px';
+        title.style.fontSize = '2em';
+        title.style.fontWeight = 'bold';
+        winDialog.appendChild(title);
+
+        // Adicionar conteúdo da mensagem
+        const content = document.createElement('div');
+        content.innerHTML = message.replace(/\n/g, '<br>');
+        content.style.marginBottom = '25px';
+        content.style.lineHeight = '1.6';
+        winDialog.appendChild(content);
+
+        // Adicionar botão de fechar com estilo
         const closeButton = document.createElement('button');
-        closeButton.textContent = 'Fechar';
-        closeButton.style.marginTop = '20px';
-        closeButton.style.padding = '10px 20px';
-        closeButton.style.backgroundColor = '#4CAF50';
-        closeButton.style.border = 'none';
-        closeButton.style.borderRadius = '5px';
+        closeButton.textContent = 'Jogar Novamente';
+        closeButton.style.padding = '12px 25px';
+        closeButton.style.backgroundColor = '#2ecc71';
         closeButton.style.color = 'white';
+        closeButton.style.border = 'none';
+        closeButton.style.borderRadius = '25px';
+        closeButton.style.fontSize = '1.1em';
         closeButton.style.cursor = 'pointer';
+        closeButton.style.transition = 'all 0.3s ease';
+        closeButton.style.boxShadow = '0 3px 10px rgba(46, 204, 113, 0.3)';
+        
+        closeButton.onmouseover = () => {
+            closeButton.style.backgroundColor = '#27ae60';
+            closeButton.style.transform = 'translateY(-2px)';
+            closeButton.style.boxShadow = '0 5px 15px rgba(46, 204, 113, 0.4)';
+        };
+        
+        closeButton.onmouseout = () => {
+            closeButton.style.backgroundColor = '#2ecc71';
+            closeButton.style.transform = 'translateY(0)';
+            closeButton.style.boxShadow = '0 3px 10px rgba(46, 204, 113, 0.3)';
+        };
         
         closeButton.onclick = () => {
-            winDialog.remove();
-            document.getElementById('startGame').disabled = false;
+            overlay.style.opacity = '0';
+            winDialog.style.opacity = '0';
+            winDialog.style.transform = 'translate(-50%, -50%) scale(0.8)';
+            setTimeout(() => {
+                overlay.remove();
+                winDialog.remove();
+                document.getElementById('startGame').disabled = false;
+            }, 500);
         };
 
         winDialog.appendChild(closeButton);
         document.body.appendChild(winDialog);
+
+        // Animar entrada dos elementos
+        requestAnimationFrame(() => {
+            overlay.style.opacity = '1';
+            winDialog.style.opacity = '1';
+            winDialog.style.transform = 'translate(-50%, -50%) scale(1)';
+        });
 
         // Tocar som de vitória
         this.playSoundEffect('win');
@@ -1196,6 +1257,54 @@ class TowerOfHanoi {
 
         // Adicionar efeitos de partículas para celebração
         this.createWinParticles();
+
+        // Adicionar confetes
+        this.createConfetti();
+    }
+
+    createConfetti() {
+        const confettiCount = 200;
+        const confettiContainer = document.createElement('div');
+        confettiContainer.style.position = 'fixed';
+        confettiContainer.style.top = '0';
+        confettiContainer.style.left = '0';
+        confettiContainer.style.width = '100%';
+        confettiContainer.style.height = '100%';
+        confettiContainer.style.pointerEvents = 'none';
+        confettiContainer.style.zIndex = '998';
+        document.body.appendChild(confettiContainer);
+
+        const colors = ['#2ecc71', '#3498db', '#e74c3c', '#f1c40f', '#9b59b6'];
+
+        for (let i = 0; i < confettiCount; i++) {
+            const confetti = document.createElement('div');
+            confetti.style.position = 'absolute';
+            confetti.style.width = Math.random() * 10 + 5 + 'px';
+            confetti.style.height = Math.random() * 10 + 5 + 'px';
+            confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+            confetti.style.left = Math.random() * 100 + '%';
+            confetti.style.top = -20 + 'px';
+            confetti.style.opacity = Math.random() * 0.5 + 0.5;
+            confetti.style.transform = 'rotate(' + Math.random() * 360 + 'deg)';
+            confetti.style.transition = 'transform 1s ease-in-out, top 1s ease-in-out';
+            confettiContainer.appendChild(confetti);
+
+            // Animar confete
+            requestAnimationFrame(() => {
+                confetti.style.top = Math.random() * 100 + '%';
+                confetti.style.transform = 'rotate(' + (Math.random() * 360 + 360) + 'deg)';
+            });
+
+            // Remover confete após animação
+            setTimeout(() => {
+                confetti.remove();
+            }, 3000);
+        }
+
+        // Remover container após animação
+        setTimeout(() => {
+            confettiContainer.remove();
+        }, 3000);
     }
 
     showDiskInfo(disk) {
@@ -1325,9 +1434,32 @@ class TowerOfHanoi {
         const loader = new THREE.FontLoader();
         loader.load('https://threejs.org/examples/fonts/helvetiker_regular.typeface.json', (font) => {
             this.font = font;
-            // Após carregar a fonte, recriar elementos que precisam de texto
-            this.createTowers();
-            this.createDisks();
+            // Atualizar apenas os labels das torres existentes
+            this.towers.forEach((tower, index) => {
+                if (tower.label) {
+                    this.scene.remove(tower.label);
+                }
+                const label = this.createText(['A', 'B', 'C'][index], 0.5, 0.1, 0x000000);
+                if (label) {
+                    const towerX = (index - 1) * 4;
+                    label.position.set(towerX, 3/2 + 3/2 + 0.2, 0);
+                    this.scene.add(label);
+                    tower.label = label;
+                }
+            });
+            // Atualizar apenas os labels dos discos
+            this.disks.forEach((disk, index) => {
+                if (disk.numberLabel) {
+                    this.scene.remove(disk.numberLabel);
+                }
+                const numberLabel = this.createText((index + 1).toString(), 0.4, 0.05, 0x000000);
+                if (numberLabel) {
+                    const diskY = disk.mesh.position.y;
+                    numberLabel.position.set(disk.mesh.position.x, diskY, disk.mesh.geometry.parameters.height/2 + 0.05);
+                    this.scene.add(numberLabel);
+                    disk.numberLabel = numberLabel;
+                }
+            });
         });
     }
 
